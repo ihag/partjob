@@ -8,7 +8,7 @@
 
 
 1차 필터링(금액이하, 비기관, 자체수집)  
-**filter.py**
+**pre_filter.py**
 
 최종 수집 후 정보 리스트업  
 **get_list.py**
