@@ -63,26 +63,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             break
         executor.submit(process_row, row, worksheet)
         row += 1
-        
-    print("완료")
 
 # %%
 workbook.save(excel_file_path)
-
-# %%
-def progress_bar(current, total, bar_length=50):
-    percent = float(current) / total
-    hashes = '#' * int(percent * bar_length)
-    spaces = '-' * (bar_length - len(hashes))
-    sys.stdout.write("\r[{0}] {1}%".format(hashes + spaces, int(percent * 100)))
-    sys.stdout.flush()
-
-total_steps = 100
-
-for i in range(total_steps + 1):
-    progress_bar(i, total_steps)
-    time.sleep(0.1)
-
 print("\n완료")
-
-
