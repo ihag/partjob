@@ -172,9 +172,8 @@ def update_excel(num_columns, file_name):
     elif os.name == 'posix':  # macOS
         subprocess.run(['open', file_name])
 
-    time.sleep(5)  # 엑셀 파일이 열릴 때까지 대기
-
-    # 파일 저장 (macOS에서는 'command' 키 사용)
+    time.sleep(5)
+    
     if os.name == 'nt':  # Windows
         with pyautogui.hold('ctrl'):
             time.sleep(1)
@@ -192,7 +191,6 @@ def update_excel(num_columns, file_name):
 
     time.sleep(1)
 
-    # 엑셀 종료 (macOS에서는 'command' 키 사용)
     if os.name == 'nt':  # Windows
         with pyautogui.hold('ctrl'):
             time.sleep(1)
@@ -202,13 +200,12 @@ def update_excel(num_columns, file_name):
             time.sleep(1)
             pyautogui.press('w')
 
-    time.sleep(2)  # 엑셀 종료 대기
+    time.sleep(2)
     
     workbook = openpyxl.load_workbook(file_name, data_only=True)
-    ws = workbook['상세정보_작업']
+    ws = workbook['상세정보_작업_2']
     time.sleep(1)
     
-    # ThreadPoolExecutor를 사용하여 병렬로 행 업데이트
     with ThreadPoolExecutor() as executor:
         executor.map(lambda row: update_row(row, ws), range(2, num_columns + 1))
 

@@ -21,5 +21,9 @@
 최종 수집 후 정보 리스트업  
 **get_list.py**
 
+
 rfp 1차  
-**rfp.py**
+**rfp.py**  
+- username check
+- weekday check
+- os check
