@@ -30,7 +30,7 @@ def get_dates():
             for i in range(5, 0, -1)
         ]
         
-        elif weekday == 6:
+        elif weekday == 3:
             date_list = [
             f"{(today - timedelta(days=i)).year}.{(today - timedelta(days=i)).month}.{(today - timedelta(days=i)).day}"
             for i in range(2, 0, -1)
