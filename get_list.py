@@ -4,6 +4,7 @@ import openpyxl
 import requests
 import re
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 # %%
 def get_list(url_value):
@@ -12,9 +13,9 @@ def get_list(url_value):
     soup = BeautifulSoup(response.content, 'html.parser')
     
     # 1. 공개일시
-    open_date = soup.find(string='공개일시').find_next("td").text.strip()
+    open_date = soup.find(string='공개일시').find_next("td").text.strip().replace('/','-')
     # 2. 의견등록마감일시
-    opinion_deadline = soup.find(string="의견등록마감일시").find_next("td").text.strip()
+    opinion_deadline = soup.find(string="의견등록마감일시").find_next("td").text.strip().replace('/','-')
     # 3. 사전규격등록번호
     reg_no = int(soup.find(string="사전규격등록번호").find_next("td").text.strip())
     # 4. 참조번호
@@ -44,6 +45,7 @@ def process_row(row,list_row, worksheet):
     data_dict = get_list(url_value)
     
     worksheet.cell(row=list_row, column=1).value = list_row-1
+    worksheet.cell(row=list_row, column=3).value = now.date()
     worksheet.cell(row=list_row, column=5).value = data_dict["open_date"][:10]
     worksheet.cell(row=list_row, column=6).value = data_dict["opinion_deadline"][:10]
     worksheet.cell(row=list_row, column=10).value = data_dict["reg_no"]
@@ -58,9 +60,11 @@ excel_file_path = input("파일명+확장자: ")
 workbook = openpyxl.load_workbook(excel_file_path)
 worksheet = workbook['상세정보_작업']
 
+
 with concurrent.futures.ThreadPoolExecutor() as executor:
     row = 76
     list_row = 2
+    now = datetime.now()
     while True:
         cell_value = worksheet.cell(row=row, column=6).value
         if cell_value != 1:
