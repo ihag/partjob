@@ -35,7 +35,7 @@ def process_row(row, worksheet):
     if budget_amount is None:
         worksheet.cell(row=row, column=6).value = "?"
         worksheet.cell(row=row, column=7).value = "예산없음"
-    elif 1 < budget_amount < 90000000:
+    elif 1 < budget_amount < 90909091:
         worksheet.cell(row=row, column=6).value = 0
         worksheet.cell(row=row, column=7).value = budget_amount
     elif budget_amount >= 90000000:
