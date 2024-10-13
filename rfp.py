@@ -25,16 +25,11 @@ def get_dates():
 
     try:
         if weekday == 1:
-            date_list = [
-            f"{(today - timedelta(days=i)).year}.{(today - timedelta(days=i)).month}.{(today - timedelta(days=i)).day}"
-            for i in range(5, 0, -1)
-        ]
+            date_list = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(5, 0, -1)]
         
         elif weekday == 3:
-            date_list = [
-            f"{(today - timedelta(days=i)).year}.{(today - timedelta(days=i)).month}.{(today - timedelta(days=i)).day}"
-            for i in range(2, 0, -1)
-        ]
+            date_list = [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(2, 0, -1)]
+
 
         else:
             raise ValueError("화요일이나 목요일이 아님")
@@ -216,7 +211,7 @@ def main():
     today = datetime.strftime(datetime.now(), "%m%d")
     dates = get_dates()
     urls = get_urls(dates)
-    username = "panda0070"
+    username = "kosa00"
     password = getpass("password: ")
 
     chromedriver_autoinstaller.install()
@@ -242,8 +237,8 @@ def main():
     file_name = f'{today}.xlsx'
     
     num_columns = merge_excel_files(download_path, file_name)
-    result_file = update_sheet(file_name, today)
-    update_excel(num_columns, result_file)
+    # result_file = update_sheet(file_name, today)
+    # update_excel(num_columns, result_file)
     
     print("\n완료")
 
