@@ -236,7 +236,7 @@ def main():
     
     file_name = f'{today}.xlsx'
     
-    num_columns = merge_excel_files(download_path, file_name)
+    # num_columns = merge_excel_files(download_path, file_name)
     # result_file = update_sheet(file_name, today)
     # update_excel(num_columns, result_file)
     

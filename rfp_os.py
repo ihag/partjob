@@ -163,6 +163,8 @@ def update_excel(num_columns, file_name):
 
     time.sleep(SAVE_WAIT_TIME)
     
+    trigger_excel_calculation()
+    
     workbook = openpyxl.load_workbook(file_name, data_only=True)
     ws = workbook['상세정보_작업_2']
     
@@ -170,6 +172,36 @@ def update_excel(num_columns, file_name):
         executor.map(lambda row: update_row(row, ws), range(2, num_columns + 1))
     
     workbook.save(file_name)
+    
+# %%
+def trigger_excel_calculation():
+    if os.name == 'nt':  # Windows
+        with pyautogui.hold('ctrl'):
+            time.sleep(SAVE_WAIT_TIME)
+            pyautogui.press('s')
+    else:  # macOS
+        with pyautogui.hold('fn'):
+            time.sleep(SAVE_WAIT_TIME)
+            pyautogui.press('f9')
+        
+        time.sleep(1)
+        
+        with pyautogui.hold('command'):
+            time.sleep(SAVE_WAIT_TIME)
+            pyautogui.press('s')
+
+    time.sleep(1)
+
+    if os.name == 'nt':  # Windows
+        with pyautogui.hold('ctrl'):
+            time.sleep(SAVE_WAIT_TIME)
+            pyautogui.press('w')
+    else:  # macOS
+        with pyautogui.hold('command'):
+            time.sleep(SAVE_WAIT_TIME)
+            pyautogui.press('w')
+
+    time.sleep(SAVE_WAIT_TIME)
 
 # %%
 # Update the sheet with the new data from merged files
@@ -228,9 +260,10 @@ def main():
     driver.quit()
 
     file_name = f'{today}.xlsx'
-    num_columns = merge_excel_files(download_path, file_name)
     
     """
+    num_columns = merge_excel_files(download_path, file_name)
+    
     if num_columns > 0:
         result_file = update_sheet(file_name, today)  # Use the updated function
         update_excel(num_columns, result_file)
