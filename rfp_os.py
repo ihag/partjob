@@ -45,8 +45,9 @@ def get_dates():
 def get_urls(date_list):
     urls = []
     for date in date_list:
-        url_first = f"https://www.kbid.co.kr/common/main_search_result.htm?txtSDate={date}&txtEDate={date}&lstViewList=100"
-        url_second = f"https://www.kbid.co.kr/common/main_search_result.htm?txtSDate={date}&txtEDate={date}&lstViewList=100&type=2"
+        url_first = f"https://www.kbid.co.kr/common/main_search_result.htm?lstFindList=1&Desc=desc&GetUp=336110%2C336100%7C%EC%82%AC%EB%AC%B4%EC%9A%A9%EA%B8%B0%EA%B8%B0%EB%B0%8F%EB%B3%B4%EC%A1%B0%EC%9A%A9%ED%92%88%2F%EC%BB%B4%ED%93%A8%ED%84%B0+%EC%86%8C%EB%AA%A8%ED%92%88+%EC%84%A4%EB%B9%84&GetTname=I&GetArea=&GetSArea=&Kind_type=0&FindG2b=&FindG2bFull=&Tname=I&lstWork=336110%2C336100&lstKind=&lstArea=999999&lstSArea=&rdoFindDate=1&txtSDate={date}&txtEDate={date}&rdoFindWord=1&txtFindWord=&gCode=&lstFindList=1&lstViewList=100"
+        url_second = f"https://www.kbid.co.kr/common/main_search_result.htm?lstFindList=1&Desc=desc&GetUp=210110%2C222999%2C222110%2C222130%2C222120%7C%EC%A0%84%EC%9E%90.%EC%A0%95%EB%B3%B4+ENG.%2F%EA%B8%B0%ED%83%80%EC%A0%95%EB%B3%B4%ED%86%B5%EC%8B%A0%EA%B4%80%EB%A0%A8%2F%EC%86%8C%ED%94%84%ED%8A%B8%EC%9B%A8%EC%96%B4%EC%82%AC%EC%97%85%EC%9E%90%2FSI%2F%EC%A0%95%EB%B3%B4%EB%B3%B4%ED%98%B8%2F%EC%BB%B4%ED%93%A8%ED%84%B0%EB%B0%8F%EC%A3%BC%EB%B3%80%EA%B8%B0%EA%B8%B0%EC%9C%A0%EC%A7%80%EB%B3%B4%EC%88%98&GetTname=Y&GetArea=&GetSArea=&Kind_type=0&FindG2b=&FindG2bFull=&Tname=Y&lstWork=210110%2C222999%2C222110%2C222130%2C222120&lstKind=&lstArea=999999&lstSArea=&rdoFindDate=1&txtSDate={date}&txtEDate={date}&rdoFindWord=1&txtFindWord=&gCode=&lstFindList=1&lstViewList=100"
+        
         urls.append((url_first, date))
         urls.append((url_second, date))
     return urls
@@ -81,15 +82,14 @@ def update_first_column(download_path, file_date):
     
     latest_file = max(files, key=os.path.getctime)
     file_name = os.path.splitext(os.path.basename(latest_file))[0] + '.xlsx'
-    
+    latest_file = xlrd.open_workbook(latest_file, ignore_workbook_corruption=True)
+
     # Open and update the Excel file
-    try:
-        workbook = xlrd.open_workbook(latest_file, ignore_workbook_corruption=True)
-        temp_df = pd.read_excel(latest_file)
-        temp_df.iloc[:, 0] = file_date  # Update first column with the date
-        temp_df.to_excel(os.path.join(download_path, file_name), index=False)
-    except Exception as e:
-        print(f"Error updating the file: {e}")
+   
+    temp_df = pd.read_excel(latest_file)
+    temp_df.iloc[:, 0] = file_date  # Update first column with the date
+    temp_df.to_excel(os.path.join(download_path, file_name), index=False)
+
 
 # %%
 # Process the URLs and download the relevant files
@@ -98,25 +98,27 @@ def process_urls(driver, urls, download_path):
     for url, file_date in urls:
         driver.get(url)
         
+
         for page_number in range(1, 4):
             try:
-                # Click page number if available
-                page_button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, f"//div[@class='list-page']//a[contains(text(), '{page_number}')]")))
-                page_button.click()
-                
-                # Select all checkboxes and click download
+                try:
+                    page_button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, f"//div[@class='list-page']//a[contains(text(), '{page_number}')]")))
+                    page_button.click()
+                except Exception:
+                    continue
+
                 all_check = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.list-board > div.list-head > span > input#allCheck")))
                 all_check.click()
 
                 excel_button = driver.find_element(By.CSS_SELECTOR, "div.list-function > input.btn-list-function.print-excel")
                 excel_button.click()
                 
-                time.sleep(DOWNLOAD_SLEEP_TIME)  # Wait for download to complete
+                time.sleep(DOWNLOAD_SLEEP_TIME)
                 
-                update_first_column(download_path, file_date)
+                updates = update_first_column(download_path, file_date)
+                updates
             
             except Exception as e:
-                print(f"Error processing URL {url}: {e}")
                 continue
 
 # %%
@@ -133,7 +135,8 @@ def merge_excel_files(path, output_file):
             print(f"Error reading file {file}: {e}")
     
     # Remove unwanted columns
-    total_df.drop(columns=['수요기관', '입찰개시일'], inplace=True, errors='ignore')
+    del total_df['수요기관']
+    del total_df['입찰개시일']
     
     total_df.to_excel(output_file, index=False, header=False)
     return total_df.shape[0]
@@ -204,7 +207,7 @@ def main():
         return
     
     urls = get_urls(dates)
-    username = "kosa00"
+    username = input("id: ")
     password = getpass("password: ")
 
     chromedriver_autoinstaller.install()
@@ -227,11 +230,14 @@ def main():
     file_name = f'{today}.xlsx'
     num_columns = merge_excel_files(download_path, file_name)
     
+    """
     if num_columns > 0:
         result_file = update_sheet(file_name, today)  # Use the updated function
         update_excel(num_columns, result_file)
+    """
     
-    print("\nProcess Completed.")
+    print("\nCompleted")
+
 
 if __name__ == "__main__":
     main()
