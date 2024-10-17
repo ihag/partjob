@@ -1,13 +1,14 @@
 # %%
 import os
 import openpyxl
-import pyautogui  # pyautogui를 사용하여 키 입력
+import pyautogui
+from bs4 import BeautifulSoup
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
-import platform  # 현재 운영체제를 확인하기 위해 사용
 
 # %%
 DOWNLOAD_SLEEP_TIME = 5
@@ -72,7 +73,7 @@ def trigger_excel_calculation():
             time.sleep(SAVE_WAIT_TIME)
             pyautogui.press('s')
 
-    time.sleep(1)
+    time.sleep(SAVE_WAIT_TIME)
 
     if os.name == 'nt':  # Windows
         with pyautogui.hold('ctrl'):
@@ -88,8 +89,15 @@ def trigger_excel_calculation():
 # %%
 # Step 4: URL에서 사전규격등록번호 가져오기
 def get_registration_number(url, driver):
-    driver.get(url)
+    # driver.get(url)
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
     
+    reg_no = int(soup.find(string="사전규격등록번호").find_next("td").text.strip())
+    
+    return reg_no
+
+    """
     try:
         number_element = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, '//td[@class="info"]/span[@id="specRegNo"]'))  # 정확한 XPath를 사용해야 함
@@ -99,6 +107,7 @@ def get_registration_number(url, driver):
     except Exception as e:
         print(f"Error fetching number from URL {url}: {e}")
         return None
+    """
 
 # %%
 # Step 5: J열에서 같은 값을 찾기
