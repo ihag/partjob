@@ -261,16 +261,18 @@ def main():
 
     file_name = f'{today}.xlsx'
     
-    """
     num_columns = merge_excel_files(download_path, file_name)
     
+    """
     if num_columns > 0:
         result_file = update_sheet(file_name, today)  # Use the updated function
         update_excel(num_columns, result_file)
     """
     
     print("\nCompleted")
-
+    
 
 if __name__ == "__main__":
     main()
+
+# %%

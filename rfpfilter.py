@@ -1,151 +1,128 @@
-# %%
 import os
-import openpyxl
-import pyautogui
+import xlwings as xw
 from bs4 import BeautifulSoup
 import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
 
-# %%
-DOWNLOAD_SLEEP_TIME = 5
-SAVE_WAIT_TIME = 1
-
-# %%
-# Step 1
+# Step 1: Open the Excel file using xlwings
 def open_excel_file(file_path):
-    if os.path.exists(file_path):
-        return file_path
-    else:
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-# %%
-# Step 2: V열의 값이 없고, T열의 값이 '??'가 아닌 경우 처리
-def process_excel(file_path, driver):
-    wb = openpyxl.load_workbook(file_path)
-    sheet = wb['상세정보_작업']
-    
-    trigger_excel_calculation()
-
-    # Step 2: V열의 값이 없고, T열의 값이 '??'가 아닌 경우 처리
-    for row in range(2, sheet.max_row + 1):  # 데이터가 2행부터 있을 때
-        t_value = sheet.cell(row=row, column=20).value  # T열
-        
-        # T열의 값이 없으면 바로 다음 행으로 넘어감
-        if not t_value or t_value == '??':
-            continue  # T열 값이 없거나 '??'일 경우 해당 행 스킵
-
-        v_value = sheet.cell(row=row, column=22).value  # V열
-
-        # 기본 조건: V열에 값이 없을 때만 진행
-        if v_value is None:
-            hyperlink = sheet.cell(row=row, column=20).hyperlink
-            if hyperlink:
-                url = hyperlink.target
-                number = get_registration_number(url, driver)
-
-                # Step 3: J열에서 같은 값을 찾기
-                if number and number != '0':
-                    match_in_J = check_number_in_J_column_set(sheet, number)
-                    if match_in_J:
-                        sheet.cell(row=row, column=22).value = 0  # V열 (22번째 열)에 0 입력
-
-    wb.save(file_path)
-
-# %%
-# Step 3: 엑셀 계산 실행
-def trigger_excel_calculation():
-    if os.name == 'nt':  # Windows
-        with pyautogui.hold('ctrl'):
-            time.sleep(SAVE_WAIT_TIME)
-            pyautogui.press('s')
-    else:  # macOS
-        with pyautogui.hold('fn'):
-            time.sleep(SAVE_WAIT_TIME)
-            pyautogui.press('f9')
-        
-        time.sleep(1)
-        
-        with pyautogui.hold('command'):
-            time.sleep(SAVE_WAIT_TIME)
-            pyautogui.press('s')
-
-    time.sleep(SAVE_WAIT_TIME)
-
-    if os.name == 'nt':  # Windows
-        with pyautogui.hold('ctrl'):
-            time.sleep(SAVE_WAIT_TIME)
-            pyautogui.press('w')
-    else:  # macOS
-        with pyautogui.hold('command'):
-            time.sleep(SAVE_WAIT_TIME)
-            pyautogui.press('w')
-
-    time.sleep(SAVE_WAIT_TIME)
-
-# %%
-# Step 4: URL에서 사전규격등록번호 가져오기
-def get_registration_number(url, driver):
-    # driver.get(url)
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    
-    reg_no = int(soup.find(string="사전규격등록번호").find_next("td").text.strip())
-    
-    return reg_no
-
-    """
     try:
-        number_element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, '//td[@class="info"]/span[@id="specRegNo"]'))  # 정확한 XPath를 사용해야 함
-        )
-        number = number_element.text.strip()  # 숫자 가져오기
-        return number
+        app = xw.App(visible=False)  # Open Excel in the background
+        wb = app.books.open(file_path)
+        return wb, app
+    except FileNotFoundError:
+        print(f"File {file_path} not found.")
+        return None, None
+
+# Step 2: Collect all numeric values from J column directly, even with gaps
+def collect_j_column_values(sheet):
+    max_rows = 12000  # Set a high row limit to ensure we capture all data in column J
+    print(f"Scanning J column from row 2 to {max_rows}")
+    
+    j_values = []
+
+    # Loop through all rows in column J from row 2 to max_rows
+    for row in range(2, max_rows + 1):
+        j_value = sheet.range(f'J{row}').value  # Get the value from column J
+
+        # Check if the value is a number (int or float), and not None
+        if isinstance(j_value, (int, float)):
+            j_values.append(int(j_value))  # Convert to integer and store in list
+
+    return set(j_values)  # Convert list to set to remove duplicates
+
+# Step 3: Process the Excel file and check reg_no against the set of J values
+def process_excel(file_path):
+    wb, app = open_excel_file(file_path)
+    
+    if wb is None:
+        print("Workbook could not be opened. Exiting.")
+        return  # Exit if the file couldn't be opened
+    
+    sheet = wb.sheets['상세정보_작업']  # Open your specific sheet
+    print(f"Processing sheet: {sheet.name}")
+
+    # Collect J column values into a set
+    j_values_set = collect_j_column_values(sheet)
+
+    # Loop through rows, starting from row 2
+    row = 2
+    while True:
+        v_value = sheet.range(f'V{row}').value  # V column (22nd)
+        t_value = sheet.range(f'T{row}').value  # T column (20th)
+
+        # Debugging: Print current row processing status
+        print(f"Processing row {row} - T column value: {t_value}, V column value: {v_value}")
+
+        # If V column is empty, process the row
+        if v_value is None:
+            # If T column is empty, stop processing
+            if not t_value:
+                print(f"T column is empty in row {row}. Stopping process.")
+                break  # Stop processing when T column is empty
+
+            # Skip rows where T column contains '??'
+            if t_value == '??':
+                print(f"Skipping row {row} because T column has '??'")
+                row += 1
+                continue
+
+            # Proceed if T column contains a valid hyperlink
+            if isinstance(t_value, str) and t_value.startswith("http"):
+                url = t_value
+                print(f"Processing URL in row {row}: {url}")
+                
+                # Try to fetch registration number from URL
+                number = get_registration_number(url)
+
+                # If we get a valid registration number, check if it exists in the set
+                if number and number != '0':
+                    if number in j_values_set:  # Check against the pre-loaded set of J column values
+                        print(f"Found matching number {number} in J column set. Updating row {row}.")
+                        sheet.range(f'V{row}').value = 0  # Set V column to 0
+                    else:
+                        print(f"No match for registration number {number} in J column set.")
+                    
+                    # Write the registration number in W column and add debug output
+                    print(f"Writing registration number {number} to W column in row {row}.")
+                    sheet.range(f'W{row}').value = number  # Write the registration number to W column
+                else:
+                    print(f"Invalid or no registration number found for row {row}.")
+            else:
+                print(f"No valid hyperlink found in T column for row {row}.")
+        else:
+            print(f"Skipping row {row} because V column already has a value.")
+        
+        row += 1
+
+    print("Saving changes to the Excel file.")
+    wb.save()  # Save the workbook after processing
+    wb.close()
+    app.quit()  # Close the Excel application
+    print(f"File saved: {file_path}")
+
+# Step 4: Get registration number from the URL
+def get_registration_number(url):
+    try:
+        print(f"Fetching registration number from URL: {url}")
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        reg_no = soup.find(string="사전규격등록번호").find_next("td").text.strip()  # Get registration number
+        print(f"Registration number found: {reg_no}")
+        return int(reg_no)
     except Exception as e:
-        print(f"Error fetching number from URL {url}: {e}")
+        print(f"Error fetching registration number from {url}: {e}")
         return None
-    """
 
-# %%
-# Step 5: J열에서 같은 값을 찾기
-def check_number_in_J_column_set(sheet, number):
-    j_values_set = {sheet.cell(row=row, column=10).value for row in range(2, sheet.max_row + 1)}  # J열은 10번째 열
-    
-    return number in j_values_set
-
-# %%
-# Step 6: 웹드라이버 설정 및 실행
-def setup_webdriver():
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")
-    driver = webdriver.Chrome(options=options)
-    return driver
-
-# %%
-# Step 7: 현재 폴더에서 파일명을 입력받아 엑셀 파일을 처리
+# Step 5: Main function to handle the file processing
 def main():
-    current_folder = os.getcwd()
-    
+    current_folder = os.getcwd()  # Get current working directory
     file_name = input("Enter the Excel file name (with extension): ")
     file_path = os.path.join(current_folder, file_name)
     
-    try:
-        excel_file = open_excel_file(file_path)
-    except FileNotFoundError as e:
-        print(e)
-        return
-
-    driver = setup_webdriver()
-
-    try:
-        process_excel(excel_file, driver)
-    finally:
-        driver.quit()
-
-    print("Completed.")
+    process_excel(file_path)
+    print("Processing completed.")
 
 if __name__ == "__main__":
     main()
