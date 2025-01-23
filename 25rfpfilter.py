@@ -1,90 +1,121 @@
+import requests
+import html
+from openpyxl import load_workbook
+from datetime import datetime
 import os
 import xlwings as xw
-from bs4 import BeautifulSoup
-import requests
 
-# Step 1: Open the Excel file using xlwings
+def fetch_data(bid_pbanc_no, bid_pbanc_ord):
+    url = "https://www.g2b.go.kr/pn/pnp/pnpe/ItemBidPbac/selectItemAnncMngV.do"
+    
+    payload = {
+        "dmItemMap":{
+            "bidPbancNo": bid_pbanc_no,
+            "bidPbancOrd": bid_pbanc_ord
+        }
+    }
+
+    headers = {
+        'Cookie': 'WHATAP=z1c19kr5h17kv5; XTVID=A2501060840080519; JSESSIONID=Mzg0MDJkOGEtMjAwNC00YTAyLTg1MDItMGUyNTBmZjIyOGMw;',
+        'Content-Type': 'application/json;charset=UTF-8',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Referer': 'https://www.g2b.go.kr/',
+        'Origin': 'https://www.g2b.go.kr',
+        'Menu-Info': '{"menuNo":"01196","menuCangVal":"PNPE027_01","bsneClsfCd":"%EC%97%85130026","scrnNo":"06085"}',
+        'SubmissionId': 'mf_wfm_container_mainWframe_selectItemAnncMngV',
+        'Sec-CH-UA': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'Sec-CH-UA-Mobile': '?0',
+        'Sec-CH-UA-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error: {response.status_code} {response.text}")
+        return None
+
+def process_row(row, worksheet):
+    bid_pbanc_no = worksheet.range(f'K{row}').value[:13]  # 11번째 열은 K열
+    bid_pbanc_ord = worksheet.range(f'K{row}').value[-3:]  # 11번째 열은 K열
+    data = fetch_data(bid_pbanc_no, bid_pbanc_ord)
+
+    if data:
+        dmItemMap = data.get("dmItemMap", {})
+        worksheet.range(f'W{row}').value = dmItemMap.get("bfSpecRegNo", "N/A")
+        dmst_unty_groupname = dmItemMap.get("dmstUntyGrpNm", "N/A")
+        worksheet.range(f'X{row}').value = html.unescape(dmst_unty_groupname)
+    else:
+        print(f"Row {row}: No data extracted for bidPbancNo {bid_pbanc_no}")
+
+def collect_j_column_values(worksheet):
+    max_rows = 12000
+    print(f"Scanning J column from row 2 to {max_rows}")
+    
+    j_values = []
+
+    for row in range(2, max_rows + 1):
+        j_value = worksheet.range(f'J{row}').value
+        if isinstance(j_value, (int, float)):
+            j_values.append(str(j_value).strip()) 
+        elif isinstance(j_value, str) and j_value.startswith('R25'):
+            j_values.append(j_value.strip())
+
+    return set(j_values)
+
 def open_excel_file(file_path):
     try:
-        app = xw.App(visible=False)  # Open Excel in the background
+        app = xw.App(visible=False)
         wb = app.books.open(file_path)
         return wb, app
     except FileNotFoundError:
         print(f"File {file_path} not found.")
         return None, None
 
-# Step 2: Collect all numeric values from J column directly, even with gaps
-def collect_j_column_values(sheet):
-    max_rows = 12000  # Set a high row limit to ensure we capture all data in column J
-    print(f"Scanning J column from row 2 to {max_rows}")
-    
-    j_values = []
-
-    # Loop through all rows in column J from row 2 to max_rows
-    for row in range(2, max_rows + 1):
-        j_value = sheet.range(f'J{row}').value  # Get the value from column J
-
-        # Check if the value is a number (int or float), and not None
-        if isinstance(j_value, (int, float)):
-            j_values.append(int(j_value))  # Convert to integer and store in list
-
-    return set(j_values)  # Convert list to set to remove duplicates
-
-# Step 3: Process the Excel file and check reg_no against the set of J values
 def process_excel(file_path):
     wb, app = open_excel_file(file_path)
     
     if wb is None:
         print("Workbook could not be opened. Exiting.")
-        return  # Exit if the file couldn't be opened
+        return
     
-    sheet = wb.sheets['상세정보_작업']  # Open your specific sheet
-    print(f"Processing sheet: {sheet.name}")
+    worksheet = wb.sheets['상세정보_작업']
+    print(f"Processing sheet: {worksheet.name}")
 
-    # Collect J column values into a set
-    j_values_set = collect_j_column_values(sheet)
+    j_values_set = collect_j_column_values(worksheet)
 
-    # Loop through rows, starting from row 2
     row = 2
     while True:
-        v_value = sheet.range(f'V{row}').value  # V column (22nd)
-        t_value = sheet.range(f'T{row}').value  # T column (20th)
+        v_value = worksheet.range(f'V{row}').value
+        t_value = worksheet.range(f'T{row}').value
 
-        # Debugging: Print current row processing status
         print(f"Processing row {row} - T column value: {t_value}, V column value: {v_value}")
 
-        # If V column is empty, process the row
         if v_value is None:
-            # If T column is empty, stop processing
             if not t_value:
                 print(f"T column is empty in row {row}. Stopping process.")
-                break  # Stop processing when T column is empty
+                break
 
-            # Skip rows where T column contains '??'
             if t_value == '??':
                 print(f"Skipping row {row} because T column has '??'")
                 row += 1
                 continue
 
-            # Proceed if T column contains a valid hyperlink
             if isinstance(t_value, str) and t_value.startswith("http"):
-                url = t_value
-                print(f"Processing URL in row {row}: {url}")
-                
-                # Try to fetch registration number from URL
-                number = get_registration_number(url)
+                process_row(row, worksheet)
 
-                # If we get a valid registration number, check if it exists in the set
+                number = worksheet.range(f'W{row}').value  # 현재 행에서 값을 가져옴
                 if number and number != '0':
-                    if number in j_values_set:  # Check against the pre-loaded set of J column values
+                    if number in j_values_set:
                         print(f"Found matching number {number} in J column set. Updating row {row}.")
-                        sheet.range(f'V{row}').value = 0  # Set V column to 0
+                        worksheet.range(f'V{row}').value = 0
                     else:
                         print(f"No match for registration number {number} in J column set.")
-                    
-                    # Write the registration number in W column and add debug output
-                    print(f"Writing registration number {number} to W column in row {row}.")
-                    sheet.range(f'W{row}').value = number  # Write the registration number to W column
                 else:
                     print(f"Invalid or no registration number found for row {row}.")
             else:
@@ -95,34 +126,17 @@ def process_excel(file_path):
         row += 1
 
     print("Saving changes to the Excel file.")
-    wb.save()  # Save the workbook after processing
+    wb.save()
     wb.close()
-    app.quit()  # Close the Excel application
+    app.quit()
     print(f"File saved: {file_path}")
 
-# Step 4: Get registration number from the URL
-def get_registration_number(url):
-    try:
-        print(f"Fetching registration number from URL: {url}")
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        reg_no = soup.find(string="사전규격등록번호").find_next("td").text.strip()  # Get registration number
-        print(f"Registration number found: {reg_no}")
-        return int(reg_no)
-    except Exception as e:
-        print(f"Error fetching registration number from {url}: {e}")
-        return None
-
-# Step 5: Main function to handle the file processing
 def main():
-    current_folder = os.getcwd()  # Get current working directory
+    current_folder = os.getcwd()
     file_name = input("Enter the Excel file name (with extension): ")
     file_path = os.path.join(current_folder, file_name)
-    
+
     process_excel(file_path)
-    print("Processing completed.")
 
 if __name__ == "__main__":
     main()

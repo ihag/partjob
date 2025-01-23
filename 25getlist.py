@@ -1,91 +1,70 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import requests
+import html
 from openpyxl import load_workbook
 from datetime import datetime
-from urllib.parse import urlparse
 
-# WebDriver 초기화
-def init_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # 백그라운드 실행
-    options.add_argument("--disable-gpu")
-    return webdriver.Chrome(options=options)
+def fetch_bf_spec_data(bf_spec_no):
+    url = "https://www.g2b.go.kr/pn/pnz/pnza/BfSpec/selectBfSpec.do"
+    
+    payload = {
+        "dlParamM": {
+            "bfSpecRegNo": bf_spec_no,
+            "prcmBsneSeCd": "",  # 필요에 따라 수정
+            "opnnSqno": "",      # 필요에 따라 수정
+            "jobType": ""        # 필요에 따라 수정
+        }
+    }
 
-# URL 유효성 검증
-def is_valid_url(url):
-    try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except ValueError:
-        return False
+    headers = {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Referer': 'https://www.g2b.go.kr/',
+        'Origin': 'https://www.g2b.go.kr',
+        'Cookie': 'WHATAP=z1c19kr5h17kv5; XTVID=A2501060840080519; JSESSIONID=YWE4OTU3ZjItMDhmMy00MjZjLTgzMmMtMzEzZjM1ZWM0N2Qw;',  # 최신 쿠키 입력
+        'Menu-Info': '{"menuNo":"01141","menuCangVal":"PRVA004_02","bsneClsfCd":"%EC%97%85130025","scrnNo":"05929"}',
+        'SubmissionId': 'mf_wfm_container_sbmSrch',
+        'Priority': 'u=1, i',
+        'Sec-CH-UA': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'Sec-CH-UA-Mobile': '?0',
+        'Sec-CH-UA-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+    }
 
-def get_list(driver, url):
-    try:
-        driver.get(url)
+    response = requests.post(url, headers=headers, json=payload)
 
-        # 데이터 추출
-        data = {}
-
-        def extract_value(xpath, method='attribute', attribute_name='value'):
-            try:
-                element = WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.XPATH, xpath))
-                )
-                if method == 'attribute':
-                    value = element.get_attribute(attribute_name)
-                else:
-                    value = element.text
-                
-                print(f"XPath: {xpath} -> Value: {value if value else 'N/A'}")
-                return value if value else "N/A"
-            except Exception as e:
-                print(f"Error while extracting value for XPath {xpath}: {e}")
-                return "N/A"
-
-        # 각 항목을 추출하여 사전 값에 저장
-        data["사전규격등록번호"] = extract_value("//th[label[text()='사전규격등록번호']]/following-sibling::td/input")
-        data["발주계획통합번호"] = extract_value("//th[label[text()='발주계획통합번호']]/following-sibling::td/a", method='text')
-        data["사전규격명"] = extract_value("//th[label[text()='사전규격명']]/following-sibling::td/label", method='text')
-        data["수요기관"] = extract_value("//th[label[text()='수요기관']]/following-sibling::td/input")
-        #data["배정예산액"] = extract_value("//th[label[text()='배정예산액(부가세포함)']]/following-sibling::td/input")
-        data["배정예산액"] = extract_value("//th[label[contains(text(),'배정예산액')]]/following-sibling::td/input")
-        data["의견등록마감일시"] = extract_value("//th[label[text()='의견등록마감일시']]/following-sibling::td/input")
-        data["사전규격 공개일시"] = extract_value("//th[label[text()='사전규격 공개일시']]/following-sibling::td/input")
-
-        return data
-
-    except Exception as e:
-        print(f"Error while extracting data from URL: {url} | Error: {e}")
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error: {response.status_code} {response.text}")
         return None
 
-
-def process_row(row, list_row, worksheet, driver):
-    url_value = worksheet.cell(row=row, column=11).value
-    url = f"https://www.g2b.go.kr/link/PRVA004_02/?bfSpecRegNo={url_value}"
-    if not is_valid_url(url):
-        print(f"Invalid URL at row {row}: {url}")
-        return
-
-    data = get_list(driver, url)
+def process_row(row, list_row, worksheet):
+    bf_spec_no = worksheet.cell(row=row, column=11).value
+    data = fetch_bf_spec_data(bf_spec_no)
 
     if data:
         # 데이터 기록
         worksheet.cell(row=list_row, column=1).value = list_row - 1
         worksheet.cell(row=list_row, column=3).value = datetime.now().date()
-        worksheet.cell(row=list_row, column=5).value = data.get("사전규격 공개일시", "N/A")[:10]
-        worksheet.cell(row=list_row, column=6).value = data.get("의견등록마감일시", "N/A")[:10]
-        worksheet.cell(row=list_row, column=10).value = data.get("사전규격등록번호", "N/A")
-        worksheet.cell(row=list_row, column=11).value = data.get("발주계획통합번호", "N/A")
-        worksheet.cell(row=list_row, column=12).value = data.get("사전규격명", "N/A")
-        worksheet.cell(row=list_row, column=13).value = data.get("수요기관", "N/A")
-        worksheet.cell(row=list_row, column=15).value = data.get("사전규격명", "N/A")
-        worksheet.cell(row=list_row, column=17).value = data.get("배정예산액", "N/A")
-
-        print(f"Row {list_row}: Data written successfully -> {data}")
+        
+        # 필요한 정보 추출
+        dlBfSpecM = data.get("dlBfSpecM", {})
+        worksheet.cell(row=list_row, column=5).value = dlBfSpecM.get("specRlsDt", "N/A").strip().replace('/', '-')[:10]  # 사전규격 공개일시
+        worksheet.cell(row=list_row, column=6).value = dlBfSpecM.get("opnnRegDdlnDt", "N/A").strip().replace('/', '-')[:10]  # 의견등록마감일시
+        worksheet.cell(row=list_row, column=10).value = dlBfSpecM.get("bfSpecRegNo", "N/A")  # 사전규격등록번호
+        worksheet.cell(row=list_row, column=11).value = dlBfSpecM.get("oderPlanNo", "N/A")  # 발주계획통합번호
+        bf_spec_name = dlBfSpecM.get("bfSpecNm", "N/A") # 사전규격명
+        worksheet.cell(row=list_row, column=12).value = html.unescape(bf_spec_name)  # HTML 엔티티 변환
+        worksheet.cell(row=list_row, column=15).value = html.unescape(bf_spec_name)  # HTML 엔티티 변환
+        dmst_unty_groupname = dlBfSpecM.get("dmstUntyGrpNm", "N/A") # 수요기관
+        worksheet.cell(row=list_row, column=13).value = html.unescape(dmst_unty_groupname)  # HTML 엔티티 변환
+        worksheet.cell(row=list_row, column=17).value = dlBfSpecM.get("alotBgtPrspAmt", "N/A")  # 배정예산액 (부가세 포함)
+        print(f"Row {list_row}: Data written successfully -> {dlBfSpecM}")
     else:
-        print(f"Row {list_row}: No data extracted for URL {url}")
+        print(f"Row {list_row}: No data extracted for bfSpecNo {bf_spec_no}")
 
 def main():
     excel_file_path = input("파일명+확장자: ")
@@ -95,19 +74,16 @@ def main():
     row = 76  # 데이터 시작 행
     list_row = 2
 
-    driver = init_driver()  # 하나의 WebDriver만 사용
-
     while True:
         cell_value = worksheet.cell(row=row, column=6).value
         if cell_value != 1:  # 특정 값이 1인 셀만 처리
             break
-        process_row(row, list_row, worksheet, driver)
+        process_row(row, list_row, worksheet)
         row += 1
         list_row += 1
 
     # 엑셀 저장
     workbook.save(excel_file_path)
-    driver.quit()  # WebDriver 종료
     print("\n완료")
 
 if __name__ == "__main__":
